@@ -3,13 +3,13 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { FloatingChat } from "@/components/ui/floating-chat"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "ServiConnect - Conecta con talentos locales",
+  title: "Chuberlite",
   description: "Encuentra profesionales cerca de ti para cualquier servicio que necesites",
-    generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -22,6 +22,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           {children}
+          <FloatingChat />
         </ThemeProvider>
       </body>
     </html>

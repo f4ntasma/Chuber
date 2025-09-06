@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Search,
   MapPin,
@@ -21,6 +21,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Header from "@/components/header"
+import { ChatModal } from "@/components/ui/chat-modal"
+import Link from "next/link"
 
 const categories = [
   { name: "Carpintería", icon: Wrench, color: "bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300" },
@@ -41,7 +43,7 @@ const categories = [
   { name: "Mecánica", icon: Car, color: "bg-gray-100 dark:bg-gray-900/20 text-gray-700 dark:text-gray-300" },
 ]
 
-const providers = [
+const mockProviders = [
   {
     id: 1,
     name: "María González",
@@ -123,15 +125,99 @@ const providers = [
 ]
 
 export default function HomePage() {
+  const [openChat, setOpenChat] = useState(false)
+  const [chatWith, setChatWith] = useState<{ id: string; name: string } | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [favorites, setFavorites] = useState<number[]>([])
+  const [realProviders, setRealProviders] = useState<any[]>([])
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [cityQuery, setCityQuery] = useState("")
+  const [citySuggestions, setCitySuggestions] = useState<string[]>([])
+  const debounceRef = useRef<any>(null)
 
-  const toggleFavorite = (id: number) => {
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch("/api/providers")
+        const data = await res.json()
+        setRealProviders(data.providers || [])
+      } catch {}
+    }
+    load()
+  }, [])
+
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => setUserLocation(null),
+        { enableHighAccuracy: true, timeout: 8000 }
+      )
+    }
+  }, [])
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      if (!cityQuery) return setCitySuggestions([])
+      const r = await fetch(`/api/locations?query=${encodeURIComponent(cityQuery)}`)
+      const d = await r.json()
+      setCitySuggestions(d.suggestions || [])
+    }, 250)
+    return () => debounceRef.current && clearTimeout(debounceRef.current)
+  }, [cityQuery])
+
+  function formatDistanceKm(km?: number | null) {
+    if (km == null) return "-"
+    if (km < 1) return `${Math.round(km * 1000)} m`
+    return `${km.toFixed(1)} km`
+  }
+
+  function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+    const R = 6371
+    const dLat = ((b.lat - a.lat) * Math.PI) / 180
+    const dLng = ((b.lng - a.lng) * Math.PI) / 180
+    const lat1 = (a.lat * Math.PI) / 180
+    const lat2 = (b.lat * Math.PI) / 180
+    const sinDlat = Math.sin(dLat / 2)
+    const sinDlng = Math.sin(dLng / 2)
+    const h = sinDlat * sinDlat + Math.cos(lat1) * Math.cos(lat2) * sinDlng * sinDlng
+    const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
+    return R * c
+  }
+
+  const toggleFavorite = async (id: number) => {
+    // For real providers (id >= 1000) persist like using provider original id inferred from mapping index
+    try {
+      await fetch("/api/likes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: String(id) }),
+      })
+    } catch {}
     setFavorites((prev) => (prev.includes(id) ? prev.filter((fav) => fav !== id) : [...prev, id]))
   }
 
-  const filteredProviders = providers.filter((provider) => {
+  const allProviders = useMemo(() => {
+    // Map real providers into display shape and compute distance
+    const real = realProviders.map((p, idx) => ({
+      id: 1000 + idx,
+      name: p.name,
+      service: p.specialty || "Servicios",
+      rating: p.rating || 4.8,
+      reviews: p.reviews || 20,
+      price: p.priceRange || "A convenir",
+      distance: p.location && userLocation ? `${formatDistanceKm(haversineKm(userLocation, p.location))}` : "-",
+      image: p.image || "/placeholder.svg?height=60&width=60",
+      specialty: p.specialty || "",
+      available: p.available ?? true,
+      responseTime: "-",
+    }))
+    return [...real, ...mockProviders]
+  }, [realProviders, userLocation])
+
+  const filteredProviders = allProviders.filter((provider) => {
     const matchesSearch =
       provider.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       provider.service.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -155,8 +241,7 @@ export default function HomePage() {
             </span>
           </h1>
           <p className="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300">
-            Encuentra profesionales cerca de ti para cualquier servicio que necesites. Desde carpinteros hasta DJs,
-            todos listos para ayudarte.
+            Encuentra profesionales cerca de ti para cualquier servicio que necesites. Todos listos para ayudarte.
           </p>
 
           {/* Search Bar */}
@@ -175,9 +260,27 @@ export default function HomePage() {
               <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <Input
                 type="text"
-                placeholder="Tu ubicación"
-                className="pl-10 h-12 text-base border-2 border-orange-200 dark:border-orange-800 focus:border-orange-400 dark:focus:border-orange-600 sm:w-48"
+                placeholder="Ciudad en Perú"
+                value={cityQuery}
+                onChange={(e) => setCityQuery(e.target.value)}
+                className="pl-10 h-12 text-base border-2 border-orange-200 dark:border-orange-800 focus:border-orange-400 dark:focus:border-orange-600 sm:w-56"
               />
+              {citySuggestions.length > 0 && (
+                <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border rounded shadow">
+                  {citySuggestions.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        setCityQuery(s)
+                        setCitySuggestions([])
+                      }}
+                      className="block w-full text-left px-3 py-2 hover:bg-orange-50 dark:hover:bg-gray-700"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <Button className="h-12 px-8 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold">
               Buscar
@@ -238,7 +341,7 @@ export default function HomePage() {
                         <AvatarFallback className="bg-gradient-to-br from-orange-400 to-amber-400 text-white">
                           {provider.name
                             .split(" ")
-                            .map((n) => n[0])
+                            .map((n: string) => n[0])
                             .join("")}
                         </AvatarFallback>
                       </Avatar>
@@ -295,16 +398,39 @@ export default function HomePage() {
 
                   <div className="flex items-center justify-between pt-2">
                     <span className="text-lg font-bold text-gray-900 dark:text-white">{provider.price}</span>
-                    <Button className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white">
-                      Contactar
-                    </Button>
-                  </div>
-                </CardContent>
+                    <Button
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  const me = await fetch("/api/auth/me").then((r) => r.json())
+                  if (!me?.user) {
+                    window.location.href = "/login?redirect=/services"
+                    return
+                  }
+                  setChatWith({ id: String(provider.id), name: provider.name })
+                  setOpenChat(true)
+                }}
+                className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white"
+              >
+                Contactar
+              </Button>
+              </div>
+              </CardContent>
               </Card>
-            ))}
-          </div>
-        </div>
-      </section>
+              ))}  {/* ← cierre del map */}
+              </div> {/* ← cierre del grid */}
+
+              {chatWith && (
+                <ChatModal
+                  open={openChat}
+                  onClose={() => setOpenChat(false)}
+                  withUserId={chatWith.id}
+                  withName={chatWith.name}
+                />
+              )}
+
+              </div>  {/* ← cierre del wrapper */}
+              </section>
+
 
       {/* CTA Section */}
       <section className="px-4 py-16 sm:px-6 lg:px-8">
