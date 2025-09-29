@@ -15,29 +15,30 @@ export default function LoginPage() {
   async function onSubmit(credentials: { email: string; password: string }) {
     setError(null)
     
-    // Crear un formulario temporal para enviar los datos
-    const form = document.createElement('form')
-    form.method = 'POST'
-    form.action = '/api/auth/login'
-    form.style.display = 'none'
-    
-    const emailInput = document.createElement('input')
-    emailInput.name = 'email'
-    emailInput.value = credentials.email
-    form.appendChild(emailInput)
-    
-    const passwordInput = document.createElement('input')
-    passwordInput.name = 'password'
-    passwordInput.value = credentials.password
-    form.appendChild(passwordInput)
-    
-    const redirectInput = document.createElement('input')
-    redirectInput.name = 'redirect'
-    redirectInput.value = redirect || "/"
-    form.appendChild(redirectInput)
-    
-    document.body.appendChild(form)
-    form.submit()
+    try {
+      const formData = new FormData()
+      formData.append('email', credentials.email)
+      formData.append('password', credentials.password)
+      formData.append('redirect', redirect || "/")
+      
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        body: formData,
+      })
+      
+      if (response.redirected) {
+        // Si el servidor redirige, sigue la redirección
+        window.location.href = response.url
+      } else if (response.ok) {
+        // Si es exitoso pero no redirige
+        window.location.href = redirect || "/"
+      } else {
+        const data = await response.json()
+        setError(data.error || 'Error al iniciar sesión')
+      }
+    } catch (error) {
+      setError('Error de conexión')
+    }
   }
 
   return (
@@ -102,5 +103,3 @@ function LoginFormWithHandler({ onSubmit }: { onSubmit: (c: { email: string; pas
     </form>
   )
 }
-
-
