@@ -18,7 +18,7 @@ export default function LoginPage() {
     // Crear un formulario temporal para enviar los datos
     const form = document.createElement('form')
     form.method = 'POST'
-    form.action = '/api/login'
+    form.action = '/api/auth/login'
     form.style.display = 'none'
     
     const emailInput = document.createElement('input')
