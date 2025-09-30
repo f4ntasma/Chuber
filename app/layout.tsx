@@ -8,7 +8,7 @@ import { FloatingChat } from "@/components/ui/floating-chat"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Chuberlite",
+  title: "ServiYa",
   description: "Encuentra profesionales cerca de ti para cualquier servicio que necesites",
 }
 

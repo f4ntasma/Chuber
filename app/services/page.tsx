@@ -29,7 +29,7 @@ export default function ServicesPage() {
             fetch("/api/likes").catch(() => null),
           ])
           const data = await provRes.json()
-          console.log("📦 Providers:", data) // 👈 revisa qué viene aquí
+          console.log("📦 Providers:", data) // revisa qué viene aquí
           setProviders(data.providers || [])
           if (likesRes && likesRes.ok) {
             const l = await likesRes.json()

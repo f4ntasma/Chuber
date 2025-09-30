@@ -35,7 +35,7 @@ export default function LikesPage() {
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <Header />
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-4">Mis likes💗</h1>
+        <h1 className="text-2xl font-bold mb-4">Mis likes</h1>
         {likedProviders.length === 0 ? (
           <p className="text-gray-700 dark:text-gray-300">Aún no tienes likes.</p>
         ) : (

@@ -43,10 +43,10 @@ export default function Header() {
           {/* Logo */}
           <div className="flex items-center space-x-2">
             <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">C</span>
+              <span className="text-white font-bold text-sm">S</span>
             </div>
             <span className="text-xl font-bold bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">
-              CHUBERLITE
+              ServiYa
             </span>
           </div>
 
