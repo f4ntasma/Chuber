@@ -1,72 +1,109 @@
 "use client"
+
 import { useEffect, useState } from "react"
+import Link from "next/link"
+import { toast } from "sonner"
 import Header from "@/components/header"
-import { useRouter } from "next/navigation"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import { useSesion } from "@/components/session-provider"
+import { supabaseBrowser } from "@/lib/supabase/client"
+import { subirFoto } from "@/lib/subir-foto"
 
 export default function ProfilePage() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { user, perfil, recargarPerfil } = useSesion()
   const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
-  const [image, setImage] = useState("")
-  const [saved, setSaved] = useState(false)
+  const [phone, setPhone] = useState("")
+  const [foto, setFoto] = useState<string | null>(null)
+  const [guardando, setGuardando] = useState(false)
+  const [subiendo, setSubiendo] = useState(false)
 
   useEffect(() => {
-    async function load() {
-      const me = await fetch("/api/auth/me")
-      const meData = await me.json()
-      if (!meData?.user) {
-        router.push("/login?redirect=/profile")
-        return
-      }
-      const res = await fetch("/api/user")
-      if (!res.ok) {
-        setError("No se pudo cargar el perfil")
-      } else {
-        const data = await res.json()
-        setName(data.user?.name || "")
-        setEmail(data.user?.email || "")
-        setImage(data.user?.image || "")
-      }
-      setLoading(false)
+    if (!perfil) return
+    setName(perfil.name)
+    setPhone(perfil.phone ?? "")
+    setFoto(perfil.avatar_url)
+  }, [perfil])
+
+  async function cambiarFoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const archivo = e.target.files?.[0]
+    e.target.value = ""
+    if (!archivo || !user) return
+    setSubiendo(true)
+    try {
+      const url = await subirFoto(user.id, archivo, "perfil")
+      await supabaseBrowser().from("profiles").update({ avatar_url: url }).eq("id", user.id)
+      setFoto(url)
+      await recargarPerfil()
+      toast.success("Foto actualizada")
+    } catch {
+      toast.error("No se pudo subir la foto")
+    } finally {
+      setSubiendo(false)
     }
-    load()
-  }, [router])
+  }
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault()
-    setError(null)
-    const res = await fetch("/api/user", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, image }),
-    })
-    if (!res.ok) setError("No se pudo guardar")
-    else setSaved(true)
+    if (!user) return
+    setGuardando(true)
+    const { error } = await supabaseBrowser().from("profiles").update({ name: name.trim(), phone: phone.trim() || null }).eq("id", user.id)
+    setGuardando(false)
+    if (error) return toast.error("No se pudo guardar")
+    await recargarPerfil()
+    toast.success("Perfil guardado")
   }
 
-  if (loading) return null
+  if (!perfil) return null
+
+  const hasta = perfil.subscription_until ? new Date(perfil.subscription_until) : null
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <Header />
-      <div className="mx-auto max-w-lg p-6">
-        <h1 className="text-2xl font-bold mb-4">Mi perfil</h1>
-        {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
-        {saved && <p className="text-green-600 text-sm mb-2">Guardado.</p>}
-        <form onSubmit={onSave} className="space-y-3">
-          <div className="flex items-center gap-3">
-            <img src={image || "/placeholder-user.jpg"} className="h-16 w-16 rounded-full object-cover" />
-            <input className="flex-1 border rounded px-3 py-2" placeholder="URL de foto" value={image} onChange={(e) => setImage(e.target.value)} />
+      <div className="mx-auto max-w-lg p-6 space-y-6">
+        <h1 className="text-2xl font-bold">Mi perfil</h1>
+
+        {perfil.role !== "user" && (
+          <div className="rounded-lg bg-white/80 dark:bg-gray-800/80 p-4 text-sm flex flex-wrap justify-between items-center gap-3">
+            <span>
+              {hasta && hasta > new Date()
+                ? <>Tu ficha está visible hasta el <strong>{hasta.toLocaleDateString("es-PE")}</strong>.</>
+                : <>Tu ficha <strong>no está visible</strong>: renueva tu plan.</>}
+            </span>
+            <div className="flex gap-2">
+              <Link href="/providers/manage" className="text-orange-600 underline">Editar ficha</Link>
+              <Link href="/pagos" className="text-orange-600 underline">Mi plan</Link>
+            </div>
           </div>
-          <input className="w-full border rounded px-3 py-2" placeholder="Nombre" value={name} onChange={(e) => setName(e.target.value)} />
-          <input className="w-full border rounded px-3 py-2 bg-gray-50 dark:bg-gray-900" value={email} disabled />
-          <button className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white py-2 rounded" type="submit">Guardar cambios</button>
+        )}
+
+        <form onSubmit={onSave} className="space-y-4">
+          <div className="flex items-center gap-4">
+            <img src={foto || "/placeholder-user.jpg"} alt="Tu foto" className="h-20 w-20 rounded-full object-cover" />
+            <label className="cursor-pointer rounded-md border px-3 py-2 text-sm font-medium focus-within:ring-2 focus-within:ring-orange-400">
+              {subiendo ? "Subiendo..." : "Cambiar foto"}
+              <input type="file" accept="image/*" className="sr-only" onChange={cambiarFoto} disabled={subiendo} />
+            </label>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="name">Nombre</Label>
+            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="phone">Celular</Label>
+            <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="999 999 999" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">Correo</Label>
+            <Input id="email" value={user?.email ?? ""} disabled />
+          </div>
+          <Button disabled={guardando} className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white" type="submit">
+            {guardando ? "Guardando..." : "Guardar cambios"}
+          </Button>
         </form>
       </div>
     </div>
   )
 }
-
-

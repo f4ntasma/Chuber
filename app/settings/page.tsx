@@ -1,66 +1,75 @@
 "use client"
+
+import { useState } from "react"
+import { useTheme } from "next-themes"
+import { toast } from "sonner"
 import Header from "@/components/header"
-import { useEffect, useState } from "react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import { useSesion } from "@/components/session-provider"
+import { supabaseBrowser } from "@/lib/supabase/client"
 
 export default function SettingsPage() {
-  const [name, setName] = useState("")
-  const [image, setImage] = useState("")
-  const [msg, setMsg] = useState<string | null>(null)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const { user } = useSesion()
+  const { theme, setTheme } = useTheme()
+  const [password, setPassword] = useState("")
+  const [cambiando, setCambiando] = useState(false)
 
-  useEffect(() => {
-    fetch("/api/user").then(async (r) => {
-      if (!r.ok) return
-      const d = await r.json()
-      setName(d.user?.name || "")
-      setImage(d.user?.image || "")
-    })
-  }, [])
-
-  async function save() {
-    setMsg(null)
-    const r = await fetch("/api/user", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, image }) })
-    setMsg(r.ok ? "Guardado" : "Error al guardar")
+  async function cambiarClave(e: React.FormEvent) {
+    e.preventDefault()
+    if (password.length < 8) return toast.error("Usa al menos 8 caracteres")
+    setCambiando(true)
+    const { error } = await supabaseBrowser().auth.updateUser({ password })
+    setCambiando(false)
+    if (error) return toast.error("No se pudo cambiar la contraseña")
+    setPassword("")
+    toast.success("Contraseña actualizada")
   }
 
-  async function deleteAccount() {
-    if (!confirm("¿Estás seguro? Esta acción no se puede deshacer.")) return
-    
-    const r = await fetch("/api/user", { method: "DELETE" })
-    if (r.ok) {
-      window.location.href = "/"
-    } else {
-      setMsg("Error al eliminar cuenta")
-    }
+  async function eliminarCuenta() {
+    if (!user || !confirm("¿Seguro? Se borrarán tu perfil, ficha, mensajes y favoritos. No se puede deshacer.")) return
+    const supabase = supabaseBrowser()
+    await supabase.storage.from("avatars").remove([`${user.id}/perfil.jpg`, `${user.id}/servicio.jpg`])
+    const { error } = await supabase.rpc("delete_my_account")
+    if (error) return toast.error("No se pudo eliminar la cuenta")
+    await supabase.auth.signOut()
+    window.location.href = "/"
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <Header />
-      <div className="mx-auto max-w-lg p-6">
-        <h1 className="text-2xl font-bold mb-4">Configuración</h1>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <img src={image || "/placeholder-user.jpg"} className="h-16 w-16 rounded-full object-cover" />
-            <input value={image} onChange={(e) => setImage(e.target.value)} className="flex-1 border rounded px-3 py-2" placeholder="URL de foto" />
+      <div className="mx-auto max-w-lg p-6 space-y-8">
+        <h1 className="text-2xl font-bold">Configuración</h1>
+
+        <section className="space-y-3">
+          <h2 className="font-semibold">Apariencia</h2>
+          <div className="flex gap-2">
+            {[["light", "Claro"], ["dark", "Oscuro"], ["system", "Como el sistema"]].map(([valor, etiqueta]) => (
+              <Button key={valor} type="button" variant={theme === valor ? "default" : "outline"} onClick={() => setTheme(valor)}>
+                {etiqueta}
+              </Button>
+            ))}
           </div>
-          <input value={name} onChange={(e) => setName(e.target.value)} className="w-full border rounded px-3 py-2" placeholder="Nombre" />
-          <button onClick={save} className="bg-gradient-to-r from-orange-500 to-amber-500 text-white px-4 py-2 rounded">Guardar</button>
-          {msg && <div className="text-sm">{msg}</div>}
-          
-          <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-semibold mb-2 text-red-600">Zona de peligro</h3>
-            <button 
-              onClick={deleteAccount}
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
-            >
-              Eliminar cuenta
-            </button>
-          </div>
-        </div>
+        </section>
+
+        <form onSubmit={cambiarClave} className="space-y-3">
+          <h2 className="font-semibold">Cambiar contraseña</h2>
+          <Label htmlFor="password" className="sr-only">Nueva contraseña</Label>
+          <Input id="password" type="password" autoComplete="new-password" placeholder="Nueva contraseña" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <Button disabled={cambiando} type="submit" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white">
+            {cambiando ? "Guardando..." : "Actualizar contraseña"}
+          </Button>
+        </form>
+
+        <section className="pt-4 border-t border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold mb-2 text-red-600">Zona de peligro</h2>
+          <button onClick={eliminarCuenta} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded">
+            Eliminar cuenta
+          </button>
+        </section>
       </div>
     </div>
   )
 }
-
-

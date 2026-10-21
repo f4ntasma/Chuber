@@ -1,19 +1,17 @@
-// components/auth/login-form.tsx
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Eye, EyeOff, Mail, Lock } from "lucide-react"
 import { LoginCharacter } from "@/components/ui/login-character"
+import { supabaseBrowser } from "@/lib/supabase/client"
 
-export function LoginForm() {
+export function LoginForm({ redirect = "/" }: { redirect?: string }) {
   const [showPassword, setShowPassword] = useState(false)
-  const [formData, setFormData] = useState({
-    email: "",
-    password: ""
-  })
+  const [formData, setFormData] = useState({ email: "", password: "" })
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -21,31 +19,21 @@ export function LoginForm() {
     e.preventDefault()
     setError(null)
     setLoading(true)
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        setError(data?.error || "Error de autenticación")
-      } else {
-        // reload to refresh session state in client components
-        window.location.href = "/"
-      }
-    } finally {
-      setLoading(false)
+    const { error } = await supabaseBrowser().auth.signInWithPassword(formData)
+    setLoading(false)
+    if (error) {
+      setError(error.message === "Email not confirmed"
+        ? "Confirma tu correo antes de entrar (revisa tu bandeja y spam)."
+        : "Correo o contraseña incorrectos.")
+      return
     }
+    // Recarga completa para que el middleware y el servidor vean la sesión nueva
+    window.location.href = redirect.startsWith("/") ? redirect : "/"
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <LoginCharacter 
-        email={formData.email} 
-        password={formData.password} 
-        showPassword={showPassword} 
-      />
+      <LoginCharacter email={formData.email} password={formData.password} showPassword={showPassword} />
       <div className="space-y-2">
         <Label htmlFor="email">Correo electrónico</Label>
         <div className="relative">
@@ -53,6 +41,7 @@ export function LoginForm() {
           <Input
             id="email"
             type="email"
+            autoComplete="email"
             placeholder="tu@email.com"
             className="pl-10"
             value={formData.email}
@@ -69,6 +58,7 @@ export function LoginForm() {
           <Input
             id="password"
             type={showPassword ? "text" : "password"}
+            autoComplete="current-password"
             placeholder="••••••••"
             className="pl-10 pr-10"
             value={formData.password}
@@ -79,6 +69,7 @@ export function LoginForm() {
             type="button"
             variant="ghost"
             size="icon"
+            aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
             className="absolute right-0 top-0 h-full px-3"
             onClick={() => setShowPassword(!showPassword)}
           >
@@ -87,7 +78,7 @@ export function LoginForm() {
         </div>
       </div>
 
-      {error && <div className="text-sm text-red-600">{error}</div>}
+      {error && <div role="alert" className="text-sm text-red-600">{error}</div>}
       <Button disabled={loading} type="submit" className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600">
         {loading ? "Ingresando..." : "Iniciar sesión"}
       </Button>
@@ -95,14 +86,10 @@ export function LoginForm() {
       <div className="text-center text-sm text-gray-600 dark:text-gray-400 space-y-2">
         <div>
           ¿No tienes cuenta?{" "}
-          <button type="button" className="text-orange-500 hover:underline">
-            Regístrate
-          </button>
+          <Link href="/register" className="text-orange-500 hover:underline">Regístrate</Link>
         </div>
         <div>
-          <a href="/forgot-password" className="text-orange-500 hover:underline">
-            ¿Olvidaste tu contraseña?
-          </a>
+          <Link href="/forgot-password" className="text-orange-500 hover:underline">¿Olvidaste tu contraseña?</Link>
         </div>
       </div>
     </form>

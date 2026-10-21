@@ -1,4 +1,4 @@
-﻿# ChuberLite
+# ChuberLite
 
 ChuberLite es una plataforma web para conectar clientes con proveedores de servicios locales (carpintería, fontanería, eventos, etc.). Permite descubrir profesionales cercanos, revisar su reputación y contactarlos de forma directa.
 
@@ -13,39 +13,33 @@ ChuberLite es una plataforma web para conectar clientes con proveedores de servi
 ## Tecnologías principales
 - Next.js 15 (App Router) con React 19 y TypeScript.
 - Tailwind CSS, shadcn/ui y Radix UI para el sistema de componentes.
-- Prisma para acceso a base de datos y scripts de migración.
-- Stripe y JWT disponibles para integraciones de pagos y autenticación.
-- Sonner, Lucide y Embla para feedback, iconos y carruseles.
+- **Supabase**: base de datos Postgres con permisos por fila (RLS), autenticación por correo, chat y notificaciones en tiempo real, y almacenamiento de fotos. No necesita servidor propio.
+- Se publica en Vercel.
 
-## Requisitos previos
-- Node.js 18+ y npm o pnpm instalados.
-- Base de datos compatible con Prisma (por ejemplo PostgreSQL).
-- Variables de entorno para credenciales: `DATABASE_URL`, claves de JWT/Stripe y configuración de correo u OAuth según el despliegue.
+## Qué hace
+- Directorio de proveedores con búsqueda, categorías, ciudad y "cerca de mí".
+- Ficha pública por proveedor con reseñas, WhatsApp y chat.
+- Favoritos, bandeja de mensajes y notificaciones en vivo.
+- Proveedores: 30 días gratis; luego plan mensual pagado por Yape/Plin y aprobado por el admin.
+- Panel `/admin`: métricas, aprobación de pagos y roles de usuarios.
 
-## Puesta en marcha rápida
+## Puesta en marcha
 ```bash
 npm install
-# Crea un archivo .env con tus credenciales
-npx prisma db push
+# .env.local
+# NEXT_PUBLIC_SUPABASE_URL=https://<proyecto>.supabase.co
+# NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 npm run dev
+```
+El esquema completo de la base está en `supabase/schema.sql`.
+
+Para nombrar al primer administrador, regístrate y luego en el SQL Editor de Supabase:
+```sql
+update public.profiles set role = 'admin' where id = (select id from auth.users where email = 'TU_CORREO');
 ```
 
 ## Scripts disponibles
 - `npm run dev`: entorno de desarrollo con Turbopack.
 - `npm run build`: build de producción.
 - `npm run start`: sirve el build generado.
-- `npm run lint`: revisa el código con ESLint.
-- `npm run postinstall`: genera el cliente de Prisma (se ejecuta automáticamente tras instalar dependencias).
-
-## Estructura básica
-- `app/`: rutas y páginas Next.js (landing, servicios, login, etc.).
-- `components/`: UI reutilizable y cabecera principal.
-- `lib/` y `hooks/`: utilidades y hooks personalizados.
-- `prisma/`: esquema y seeds para la base de datos.
-- `public/`: assets estáticos (imágenes y placeholders).
-
-## Contribución
-Las mejoras son bienvenidas. Abre un issue con la descripción del cambio propuesto y, si envías un PR, incluye contexto, pasos de prueba y evita regresiones. Procura mantener un tono profesional en los textos y no introducir contenidos que afecten negativamente la experiencia del usuario.
-
-## Estado del proyecto
-Proyecto en desarrollo activo. Usa la rama principal para trabajo actual y revisa las dependencias antes de desplegar.
+- `npm run typecheck`: revisa los tipos.
